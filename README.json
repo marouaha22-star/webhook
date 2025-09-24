@@ -1,0 +1,212 @@
+{
+  "name": "US News Automation Full",
+  "nodes": [
+    {
+      "parameters": {
+        "triggerTimes": [
+          {
+            "hour": 8,
+            "minutes": 0
+          }
+        ]
+      },
+      "id": "1",
+      "name": "Cron Trigger",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [200, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://feeds.reuters.com/Reuters/domesticNews"
+      },
+      "id": "2",
+      "name": "RSS Feed Read",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "model": "gpt-4o-mini",
+        "messages": [
+          {
+            "role": "user",
+            "content": "Rewrite this news item into a short, clear English report (max 80 words):\n\n{{$json[\"title\"]}}\n{{$json[\"content\"]}}"
+          }
+        ]
+      },
+      "id": "3",
+      "name": "OpenAI Rewrite",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [700, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://api.elevenlabs.io/v1/text-to-speech/Rachel",
+        "method": "POST",
+        "responseFormat": "file",
+        "responseBinaryPropertyName": "audio",
+        "jsonParameters": true,
+        "headerParametersJson": "{\"Content-Type\":\"application/json\",\"xi-api-key\":\"={{$env(\"ELEVENLABS_API_KEY\")}}\",\"Accept\":\"audio/mpeg\"}",
+        "bodyParametersJson": "{\n  \"text\": \"={{$json[\"choices\"][0][\"message\"][\"content\"]}}\",\n  \"voice_settings\": {\"stability\":0.7,\"similarity_boost\":0.7}\n}"
+      },
+      "id": "4",
+      "name": "ElevenLabs TTS",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [950, 300]
+    },
+    {
+      "parameters": {
+        "fileName": "/tmp/news.mp3",
+        "dataPropertyName": "audio"
+      },
+      "id": "5",
+      "name": "Save MP3",
+      "type": "n8n-nodes-base.writeBinaryFile",
+      "typeVersion": 1,
+      "position": [1200, 300]
+    },
+    {
+      "parameters": {
+        "command": "python3",
+        "arguments": "/home/ubuntu/news_automation/generate_video.py --input /tmp/news.mp3 --output /tmp/main_video.mp4"
+      },
+      "id": "6",
+      "name": "Generate Main Video",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [1450, 300]
+    },
+    {
+      "parameters": {
+        "command": "python3",
+        "arguments": "/home/ubuntu/news_automation/merge_videos.py --intro /home/ubuntu/news_automation/intro.mp4 --main /tmp/main_video.mp4 --outro /home/ubuntu/news_automation/outro.mp4 --output /tmp/final_video.mp4"
+      },
+      "id": "7",
+      "name": "Merge Intro+Main+Outro",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [1700, 300]
+    },
+    {
+      "parameters": {
+        "filePath": "/tmp/final_video.mp4",
+        "binaryPropertyName": "data"
+      },
+      "id": "8",
+      "name": "Read Final Video",
+      "type": "n8n-nodes-base.readBinaryFile",
+      "typeVersion": 1,
+      "position": [1950, 300]
+    },
+    {
+      "parameters": {
+        "title": "{{$json[\"title\"]}} – {{$now.format(\"YYYY-MM-DD\")}}",
+        "additionalFields": {
+          "description": "{{$json[\"choices\"][0][\"message\"][\"content\"]}}\n\nStay updated with the latest US news. Don't forget to Like 👍 & Subscribe 🔔 for daily updates!",
+          "tags": "US News, Breaking News, Daily Update, Reuters, America"
+        },
+        "binaryProperty": "data",
+        "privacyStatus": "public"
+      },
+      "id": "9",
+      "name": "Upload to YouTube",
+      "type": "n8n-nodes-base.youtube",
+      "typeVersion": 1,
+      "position": [2200, 300]
+    }
+  ],
+  "connections": {
+    "Cron Trigger": {
+      "main": [
+        [
+          {
+            "node": "RSS Feed Read",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RSS Feed Read": {
+      "main": [
+        [
+          {
+            "node": "OpenAI Rewrite",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Rewrite": {
+      "main": [
+        [
+          {
+            "node": "ElevenLabs TTS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ElevenLabs TTS": {
+      "main": [
+        [
+          {
+            "node": "Save MP3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save MP3": {
+      "main": [
+        [
+          {
+            "node": "Generate Main Video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Main Video": {
+      "main": [
+        [
+          {
+            "node": "Merge Intro+Main+Outro",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Intro+Main+Outro": {
+      "main": [
+        [
+          {
+            "node": "Read Final Video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Final Video": {
+      "main": [
+        [
+          {
+            "node": "Upload to YouTube",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+    }# webhook
